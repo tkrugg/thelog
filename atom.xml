@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <title>The log</title>
   
-  <link href="/atom.xml" rel="self"/>
+  <link href="/thelog/atom.xml" rel="self"/>
   
   <link href="http://yoursite.com/"/>
   <updated>2016-12-10T12:17:03.000Z</updated>
