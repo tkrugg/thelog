@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>The log</title>
+  
+  <link href="/atom.xml" rel="self"/>
+  
+  <link href="http://yoursite.com/"/>
+  <updated>2016-12-10T12:17:03.000Z</updated>
+  <id>http://yoursite.com/</id>
+  
+  <author>
+    <name>John Doe</name>
+    
+  </author>
+  
+  <generator uri="http://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>Mocking express middleware</title>
+    <link href="http://yoursite.com/2016/12/09/Mocking-express-middleware/"/>
+    <id>http://yoursite.com/2016/12/09/Mocking-express-middleware/</id>
+    <published>2016-12-09T21:36:32.000Z</published>
+    <updated>2016-12-10T12:17:03.000Z</updated>
+    
+    <content type="html"><![CDATA[<p>There are many patterns you can use to define an express middlewares. The factory pattern is one of the prefered for its flexibilty and readability (some in the community rightly call it <em>“the closure pattern”</em>).</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="comment">// middleware.js</span></div><div class="line"><span class="built_in">module</span>.exports = <span class="function"><span class="keyword">function</span> <span class="title">factory</span>(<span class="params">options</span>) </span>&#123;</div><div class="line">	<span class="keyword">return</span> <span class="function">(<span class="params">req, res, next</span>) =&gt;</span> &#123;...&#125;;</div><div class="line">&#125;;</div><div class="line"></div><div class="line"><span class="comment">// app.js</span></div><div class="line"><span class="keyword">const</span> middleware = <span class="built_in">require</span>(<span class="string">"./middleware"</span>);</div><div class="line"><span class="keyword">const</span> express = <span class="built_in">require</span>(<span class="string">"express"</span>);</div><div class="line"></div><div class="line"><span class="keyword">const</span> app = express();</div><div class="line">app.use(<span class="string">"/path"</span>, middelware(&#123;...&#125;);</div></pre></td></tr></table></figure>
+<p>When testing <code>app.js</code>, you’ll want to check if our middleware gets initialized then called when <code>/path</code>is hit.</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">const</span> expect = <span class="built_in">require</span>(<span class="string">"chai"</span>).expect;</div><div class="line"><span class="keyword">const</span> request = <span class="built_in">require</span>(<span class="string">"supertest"</span>);</div><div class="line"><span class="keyword">const</span> app = <span class="built_in">require</span>(<span class="string">"./app"</span>);</div><div class="line"></div><div class="line">request(app)</div><div class="line">	.get(<span class="string">"/path"</span>)</div><div class="line">	.end(<span class="function">(<span class="params">err, res</span>) =&gt;</span> &#123;</div><div class="line">		expect(res.status).to.equal(<span class="number">200</span>);</div><div class="line">		<span class="comment">// need to check middleware was called once</span></div><div class="line">	&#125;);</div></pre></td></tr></table></figure>
+<p>There are two reasons we can’t get easily get away with <code>sinon</code> only:</p>
+<ol>
+<li>the middleware we want to spy on is returned by a factory, and sinon is just better at watching object methods.</li>
+<li>the factory function is directly exported as the module, and it’d have been easier to test it if it was a method – same reason as 1. </li>
+</ol>
+<p>We’d need to find a way to stub the factory function, a <em>fake middleware</em>, to make it return instead a sinon spy we can afterwards use in our testing.</p>
+<h3 id="Stubbing-the-factory-function"><a href="#Stubbing-the-factory-function" class="headerlink" title="Stubbing the factory function"></a>Stubbing the factory function</h3><p>This comes down to simply overriding the definition of our <code>./middleware</code> module. For that, we can use <a href="https://github.com/thlorenz/proxyquire" target="_blank" rel="external"><code>proxyquire</code></a> instead of the usual <code>require</code>.</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">const</span> fakeModule = <span class="function"><span class="keyword">function</span>(<span class="params"></span>)</span>&#123;...&#125;;</div><div class="line"><span class="keyword">const</span> proxyquire = <span class="built_in">require</span>(<span class="string">"proxyquire"</span>);</div><div class="line"><span class="keyword">const</span> app = proxyquire(<span class="string">"./app"</span>, &#123;<span class="string">"./middleware"</span>: fakeModule&#125;);</div></pre></td></tr></table></figure>
+<p>Now the <code>app</code> that’s required is exactly different, except that it’s using <code>fakeModule</code> we’ve just defined instead of the original <code>./middleware</code>. Of course the mock needs to keep an implementation that fairely close to the original module.</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">const</span> fakeModule = <span class="function"><span class="keyword">function</span>(<span class="params">options</span>) </span>&#123;</div><div class="line">	<span class="keyword">return</span> <span class="function"><span class="keyword">function</span>(<span class="params">req, res, next</span>) </span>&#123; ... &#125;;</div><div class="line">&#125;;</div></pre></td></tr></table></figure>
+<p>We’ve mocked our factory function, now we can start monitoring the call to the middleware it’s returning.</p>
+<h3 id="Spying-on-our-middleware"><a href="#Spying-on-our-middleware" class="headerlink" title="Spying on our middleware"></a>Spying on our middleware</h3><p>Now we use sinon to initialize a spy and replace put it inside our middleware. </p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">const</span> spy = sinon.spy();</div><div class="line"><span class="keyword">const</span> fakeModule = <span class="function"><span class="keyword">function</span>(<span class="params">options</span>) </span>&#123;</div><div class="line">	<span class="keyword">return</span> <span class="function"><span class="keyword">function</span>(<span class="params">req, res, next</span>) </span>&#123;</div><div class="line">		spy(req, res, next);</div><div class="line">	&#125;;</div><div class="line">&#125;;</div></pre></td></tr></table></figure>
+<h3 id="Putting-it-all-together"><a href="#Putting-it-all-together" class="headerlink" title="Putting it all together"></a>Putting it all together</h3><figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">const</span> expect = <span class="built_in">require</span>(<span class="string">"chai"</span>).expect;</div><div class="line"><span class="keyword">const</span> request = <span class="built_in">require</span>(<span class="string">"supertest"</span>);</div><div class="line"><span class="keyword">const</span> app = proxyquire(<span class="string">"./app"</span>, &#123;<span class="string">"./middleware"</span>: fakeModule&#125;);</div><div class="line"></div><div class="line">request(app)</div><div class="line">    .get(<span class="string">"/path"</span>)</div><div class="line">    .end(<span class="function">(<span class="params">err, res</span>) =&gt;</span> &#123;</div><div class="line">		expect(res.status).to.equal(<span class="number">200</span>);</div><div class="line"></div><div class="line">		expect(spy.calledOnce).to.be.true;</div><div class="line">		<span class="keyword">const</span> [req, res, next] = spy.args;</div><div class="line">		expect(req).to.have.property(<span class="string">"session"</span>);</div><div class="line">	&#125;);</div></pre></td></tr></table></figure>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;p&gt;There are many patterns you can use to define an express middlewares. The factory pattern is one of the prefered for its flexibilty and r
+    
+    </summary>
+    
+    
+  </entry>
+  
+</feed>
